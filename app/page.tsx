@@ -126,7 +126,8 @@ export default function Home() {
       struggled: boolean;
       personal_difficulty: "Easy" | "Medium" | "Hard";
       active_recall_question: string;
-      reviewSelfAssessment: boolean | null;
+      active_recall_answer: string | null;
+      recall_succeeded: boolean | null;
     }
   ) => {
     const tempId = crypto.randomUUID();
@@ -137,13 +138,8 @@ export default function Home() {
       struggled: payload.struggled,
       personal_difficulty: payload.personal_difficulty,
       active_recall_question: payload.active_recall_question,
-      // If this is a review and Kushal could answer his prior question, capture that as the answer.
-      active_recall_answer:
-        session.isReview && payload.reviewSelfAssessment !== null
-          ? payload.reviewSelfAssessment
-            ? "Yes — answered correctly from memory"
-            : "No — could not recall"
-          : null,
+      active_recall_answer: payload.active_recall_answer,
+      recall_succeeded: session.isReview ? payload.recall_succeeded : null,
       is_review: session.isReview,
     };
 
@@ -161,6 +157,7 @@ export default function Home() {
       personal_difficulty: attempt.personal_difficulty,
       active_recall_question: attempt.active_recall_question,
       active_recall_answer: attempt.active_recall_answer,
+      recall_succeeded: attempt.recall_succeeded,
       is_review: attempt.is_review,
     });
     if (insertErr) {
@@ -171,6 +168,22 @@ export default function Home() {
   const onSaveSettings = (n: number) => {
     setDailyCount(n);
     saveSettings({ dailyCount: n });
+
+    // Rebuild today's session for the new count, preserving anything completed.
+    const completedItems = todaySession.filter((s) => completedToday.has(s.problem.id));
+    const completedIds = new Set(completedItems.map((s) => s.problem.id));
+    const fresh = buildTodaySession({
+      problems: PROBLEMS,
+      attempts,
+      dailyCount: n,
+    }).filter((s) => !completedIds.has(s.problem.id));
+    const merged = [...completedItems, ...fresh].slice(
+      0,
+      Math.max(n, completedItems.length)
+    );
+    setTodaySession(merged);
+    saveCachedSession(merged.map((s) => s.problem.id));
+
     setSettingsOpen(false);
   };
 

@@ -1,4 +1,9 @@
--- Run this in the Supabase SQL editor.
+-- Fresh-setup schema. Run once in the Supabase SQL editor when you first
+-- provision the project. Idempotent — safe to re-run.
+--
+-- Already running an older version of this app? Don't run this; instead apply
+-- everything in supabase/migrations/ in filename order.
+--
 -- Single-user app, no auth, RLS disabled.
 
 create table if not exists problems (
@@ -19,6 +24,7 @@ create table if not exists attempts (
   personal_difficulty text not null check (personal_difficulty in ('Easy', 'Medium', 'Hard')),
   active_recall_question text not null,
   active_recall_answer text,
+  recall_succeeded boolean,
   is_review boolean not null default false
 );
 

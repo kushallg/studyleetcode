@@ -7,7 +7,7 @@ import LogModal, { LogPayload } from "./LogModal";
 interface Props {
   session: SessionProblem;
   completedAttempt?: Attempt;
-  onComplete: (payload: LogPayload & { reviewSelfAssessment: boolean | null }) => void;
+  onComplete: (payload: LogPayload & { recall_succeeded: boolean | null }) => void;
 }
 
 export default function ProblemCard({ session, completedAttempt, onComplete }: Props) {
@@ -136,7 +136,7 @@ export default function ProblemCard({ session, completedAttempt, onComplete }: P
           onClose={() => setModalOpen(false)}
           onSave={(payload) => {
             setModalOpen(false);
-            onComplete({ ...payload, reviewSelfAssessment: reviewAnswer });
+            onComplete({ ...payload, recall_succeeded: reviewAnswer });
           }}
         />
       )}

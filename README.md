@@ -11,7 +11,7 @@ The app does **one job**: it schedules. No problems are solved inside it. Every 
 NeetCode 150 / Blind 75 are great lists, but there are two real problems with grinding through them:
 
 1. **Pattern starvation.** If you go in order, you'll have deep coverage of arrays and zero exposure to graphs or DP if you stop halfway. This app interleaves patterns so you've touched every major category by problem 10.
-2. **No reinforcement.** Without a feedback loop, hard problems stay hard. This app surfaces problems you struggled with after a 3-day gap and forces you to write your own active-recall question after every solve.
+2. **No reinforcement.** Without a feedback loop, hard problems stay hard. This app re-surfaces every problem you've solved on a stage-based interval (3 → 7 → 14 → 30 → 60 days), pushing the gap out after each clean recall and snapping it back to 3 days whenever you struggle or fail to recall. You write your own active-recall Q&A after every solve so reviews actually quiz you.
 
 Built for one user (no auth, no multi-tenancy), but easy to fork for yourself.
 
@@ -21,8 +21,8 @@ Built for one user (no auth, no multi-tenancy), but easy to fork for yourself.
 
 - **Daily session.** Decides what you do today: a mix of new problems and due reviews. Stable across page reloads.
 - **Pattern interleaving.** New problems are pulled from rotating "interleave groups" so you cover every pattern from day one, not all-arrays-then-all-graphs.
-- **Spaced repetition.** Problems you flagged as "struggled" come back as reviews after 3+ days.
-- **Active recall.** Every solve requires you to write a question about what you learned. Reviews show you that question and let you grade yourself.
+- **Spaced repetition.** Every solved problem comes back on a stage-based schedule. Stages are `[3, 7, 14, 30, 60]` days: a struggle or failed recall resets to stage 0; a clean solve or successful recall promotes one stage.
+- **Active recall.** Every solve asks you to write a question and (optionally) an answer about what you learned. On review, the card shows the question, lets you reveal the answer you wrote, and asks whether you could recall it.
 - **Stats.** Total solved, current streak, problems due tomorrow.
 - **Dark utilitarian UI.** Looks like a CLI tool. Mobile-responsive.
 
@@ -119,12 +119,13 @@ Every page load runs the algorithm in `lib/scheduler.ts`. Inputs: all your past 
 
 ### Step 1 — Find due reviews
 
-A problem is **due** if all three are true:
-- You've attempted it at least once.
-- Your most recent attempt had `struggled = true`.
-- That attempt was at least 3 days ago.
+Every problem you've ever attempted is a review candidate. Each one has a "stage" derived from its full attempt history:
 
-Sorted by oldest-first.
+- Start at stage 0.
+- A clean attempt (no struggle, and on reviews `recall_succeeded = true`) promotes one stage, capped at 4.
+- A failed attempt (`struggled = true` *or* `recall_succeeded = false` on a review) resets to stage 0.
+
+The stage maps to an interval in `INTERVALS_DAYS = [3, 7, 14, 30, 60]`. A problem is **due** if `daysBetween(lastAttempt, today) >= INTERVALS_DAYS[stage]`. Due reviews are sorted oldest-first.
 
 ### Step 2 — Split slots
 
@@ -157,10 +158,11 @@ Final list mixes review and new problems with reviews evenly spaced — so revie
 4. Modal asks:
    - Did you struggle? (Yes/No)
    - Your own difficulty rating (Easy/Medium/Hard, defaults to LeetCode's label)
-   - Write a question about what you learned (min 10 chars)
+   - A question about what you learned (min 10 chars).
+   - An answer to that question (optional — what you'll try to recall later).
 5. Save → row inserted into `attempts`, card marked complete.
 
-For **review cards**, the card also shows your prior question and asks "Could you answer it?" before letting you mark done. That self-assessment becomes the new `active_recall_answer` for the next review.
+For **review cards**, the card first shows your prior question with a "Reveal your answer" button (which displays the answer text from the last attempt) and asks "Could you answer it?" — Yes or No. You can't mark done until you pick one. That answer is stored on the new attempt as `recall_succeeded` (a real boolean), which feeds the stage-based scheduler: Yes promotes the stage, No resets it.
 
 ---
 
@@ -195,9 +197,9 @@ Edit `lib/problems.ts`. Each problem needs:
 
 `interleave_group` is computed automatically. After editing, run `npm run seed` again.
 
-### Change the review interval
+### Change the review intervals
 
-Default is 3 days. Edit the `daysBetween(...) < 3` check in `lib/scheduler.ts`.
+Defaults are `[3, 7, 14, 30, 60]` days. Edit the `INTERVALS_DAYS` constant at the top of `lib/scheduler.ts`. You can add more stages, change the values, or shorten the array — `nextIntervalDays` clamps stage to `INTERVALS_DAYS.length - 1`.
 
 ### Change the review cap
 
@@ -227,7 +229,9 @@ Default is 60% of daily slots. Edit `Math.floor(dailyCount * 0.6)` in `lib/sched
 ├── scripts/
 │   └── seed.ts               # one-time problem-bank upsert
 ├── supabase/
-│   └── schema.sql            # CREATE TABLE statements
+│   ├── schema.sql            # CREATE TABLE statements (fresh setup)
+│   ├── migrations/           # additive SQL for upgrading existing installs
+│   └── README.md             # which file to run when
 ├── .env.example
 └── package.json
 ```
@@ -254,7 +258,8 @@ create table attempts (
   struggled boolean not null,
   personal_difficulty text not null check (personal_difficulty in ('Easy', 'Medium', 'Hard')),
   active_recall_question text not null,   -- you write this
-  active_recall_answer text,              -- you fill on review
+  active_recall_answer text,              -- you write this (optional)
+  recall_succeeded boolean,               -- on reviews: did you recall it?
   is_review boolean not null default false
 );
 ```
@@ -281,7 +286,7 @@ You skipped step 4. Run `supabase/schema.sql` in the SQL Editor.
 Either `.env.local` is missing those values or the dev server wasn't restarted after editing it. Stop and re-run `npm run dev`.
 
 **Mark Done is disabled**
-Click "Open on LeetCode" first. The button enables only after you've actually opened the problem (and, for reviews, answered the self-assessment).
+Click "Open on LeetCode" first. The button enables only after you've actually opened the problem (and, on review cards, picked Yes or No on "Could you answer it?").
 
 **Scheduler picks the same problems forever**
 That means you've completed all 150 problems — congrats. Add more to `lib/problems.ts` and re-seed.

@@ -7,6 +7,7 @@ export interface LogPayload {
   struggled: boolean;
   personal_difficulty: Difficulty;
   active_recall_question: string;
+  active_recall_answer: string | null;
 }
 
 interface Props {
@@ -19,6 +20,7 @@ export default function LogModal({ problem, onClose, onSave }: Props) {
   const [struggled, setStruggled] = useState<boolean | null>(null);
   const [personalDifficulty, setPersonalDifficulty] = useState<Difficulty>(problem.difficulty);
   const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -36,6 +38,7 @@ export default function LogModal({ problem, onClose, onSave }: Props) {
       struggled,
       personal_difficulty: personalDifficulty,
       active_recall_question: question.trim(),
+      active_recall_answer: answer.trim().length > 0 ? answer.trim() : null,
     });
   };
 
@@ -88,7 +91,7 @@ export default function LogModal({ problem, onClose, onSave }: Props) {
             <textarea
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              rows={4}
+              rows={3}
               className="w-full border border-border bg-panel2 px-3 py-2 font-mono text-sm text-ink outline-none focus:border-accent"
               placeholder="What's the key insight or trick?"
             />
@@ -96,6 +99,19 @@ export default function LogModal({ problem, onClose, onSave }: Props) {
               Example: &quot;What data structure makes this O(n) instead of O(n²)?&quot;
             </div>
             <div className="mt-1 text-xs text-faint">{question.trim().length}/10 min</div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-xs uppercase tracking-wider text-muted">
+              Answer (optional — what you&apos;ll try to recall later)
+            </label>
+            <textarea
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              rows={3}
+              className="w-full border border-border bg-panel2 px-3 py-2 font-mono text-sm text-ink outline-none focus:border-accent"
+              placeholder="The answer to your question."
+            />
           </div>
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">

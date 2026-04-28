@@ -14,9 +14,7 @@ function daysBetween(a: Date, b: Date): number {
 
 function isFailedAttempt(a: Attempt): boolean {
   if (a.struggled) return true;
-  if (a.is_review && a.active_recall_answer && a.active_recall_answer.startsWith("No")) {
-    return true;
-  }
+  if (a.is_review && a.recall_succeeded === false) return true;
   return false;
 }
 

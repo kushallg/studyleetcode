@@ -39,6 +39,8 @@ export interface Attempt {
   personal_difficulty: Difficulty;
   active_recall_question: string;
   active_recall_answer: string | null;
+  // null on first attempts; on reviews, true if user could recall, false if not.
+  recall_succeeded: boolean | null;
   is_review: boolean;
 }
 
