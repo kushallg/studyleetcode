@@ -2,21 +2,50 @@ import type { Problem, Attempt, SessionProblem } from "@/types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Stage-based spaced-repetition intervals (in days). Each clean solve / successful
+// recall promotes one stage; struggling or failing recall resets to stage 0.
+const INTERVALS_DAYS = [3, 7, 14, 30, 60];
+
 function daysBetween(a: Date, b: Date): number {
   const da = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
   const db = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
   return Math.floor((db - da) / DAY_MS);
 }
 
-function latestAttemptByProblem(attempts: Attempt[]): Map<string, Attempt> {
-  const byId = new Map<string, Attempt>();
+function isFailedAttempt(a: Attempt): boolean {
+  if (a.struggled) return true;
+  if (a.is_review && a.active_recall_answer && a.active_recall_answer.startsWith("No")) {
+    return true;
+  }
+  return false;
+}
+
+function attemptsByProblem(attempts: Attempt[]): Map<string, Attempt[]> {
+  const out = new Map<string, Attempt[]>();
   for (const a of attempts) {
-    const cur = byId.get(a.problem_id);
-    if (!cur || new Date(a.attempted_at) > new Date(cur.attempted_at)) {
-      byId.set(a.problem_id, a);
+    const arr = out.get(a.problem_id) ?? [];
+    arr.push(a);
+    out.set(a.problem_id, arr);
+  }
+  for (const arr of out.values()) {
+    arr.sort((x, y) => +new Date(x.attempted_at) - +new Date(y.attempted_at));
+  }
+  return out;
+}
+
+// Walks a problem's attempt history to compute the next interval. Empty history
+// returns -1 (problem is new, not a review candidate).
+export function nextIntervalDays(history: Attempt[]): number {
+  if (history.length === 0) return -1;
+  let stage = 0;
+  for (const a of history) {
+    if (isFailedAttempt(a)) {
+      stage = 0;
+    } else {
+      stage = Math.min(stage + 1, INTERVALS_DAYS.length - 1);
     }
   }
-  return byId;
+  return INTERVALS_DAYS[stage];
 }
 
 export interface BuildSessionInput {
@@ -32,16 +61,18 @@ export function buildTodaySession({
   dailyCount,
   now = new Date(),
 }: BuildSessionInput): SessionProblem[] {
-  const latestByProblem = latestAttemptByProblem(attempts);
-  const seenIds = new Set(latestByProblem.keys());
+  const byProblem = attemptsByProblem(attempts);
+  const seenIds = new Set(byProblem.keys());
 
-  // Step 1: due reviews
+  // Step 1: due reviews — every previously-attempted problem is a review
+  // candidate; the stage determines when it's due back.
   const dueReviews: { problem: Problem; lastAttempt: Attempt }[] = [];
   for (const p of problems) {
-    const last = latestByProblem.get(p.id);
-    if (!last) continue;
-    if (!last.struggled) continue;
-    if (daysBetween(new Date(last.attempted_at), now) < 3) continue;
+    const history = byProblem.get(p.id);
+    if (!history || history.length === 0) continue;
+    const last = history[history.length - 1];
+    const interval = nextIntervalDays(history);
+    if (daysBetween(new Date(last.attempted_at), now) < interval) continue;
     dueReviews.push({ problem: p, lastAttempt: last });
   }
   dueReviews.sort(
@@ -148,14 +179,16 @@ export function dueTomorrowCount(
   attempts: Attempt[],
   now: Date = new Date()
 ): number {
-  const latestByProblem = latestAttemptByProblem(attempts);
+  const byProblem = attemptsByProblem(attempts);
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   let count = 0;
   for (const p of problems) {
-    const last = latestByProblem.get(p.id);
-    if (!last || !last.struggled) continue;
-    if (daysBetween(new Date(last.attempted_at), tomorrow) >= 3) count += 1;
+    const history = byProblem.get(p.id);
+    if (!history || history.length === 0) continue;
+    const last = history[history.length - 1];
+    const interval = nextIntervalDays(history);
+    if (daysBetween(new Date(last.attempted_at), tomorrow) >= interval) count += 1;
   }
   return count;
 }

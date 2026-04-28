@@ -306,8 +306,7 @@ function rebuildFromIds(ids: string[], attempts: Attempt[]): SessionProblem[] {
     const p = byId.get(id);
     if (!p) continue;
     const last = latestByProblem.get(id);
-    // A problem cached as a review remains a review only if its latest non-today attempt struggled.
-    const isReview = !!last && last.struggled;
+    const isReview = !!last;
     out.push({ problem: p, isReview, lastAttempt: isReview ? last : undefined });
   }
   return out;
